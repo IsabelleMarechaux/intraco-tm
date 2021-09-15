@@ -2,23 +2,28 @@
 
 # Parameters
 gridsize <- 100
-env_dim <- 2
+env_dim <- 1
 n_species <- 20
 n_ind_per_species <- 10
 n_ind <- n_species * n_ind_per_species
 n_cell <- gridsize * gridsize
-n_iter <- 100
+n_iter <- 200
 
 # Demographic rates
 mortality_rate <- 0.05
 recruitment_rate <- 0.5
 
 # Scenarios
-attribute_scenario <- 1 # Scenario 1, 2, 3 or 4 (eg. 1: species differences, no IV)
+attribute_scenario <- 3 # Scenario 1, 2, 3 or 4 (eg. 1: species differences, no IV)
 nonlin <- 0 # Performance = (1-nonlin)*A + nonlin*A^2
 
-# Interspecific variability
+# Variability
 var_inter <- 1
+var_intra <- 0.5
+var_env <- 2
+
+# Variance of parameters for environment (scenarios 3 and 4)
+var_beta <- 1
 
 # =========================
 # Variables
@@ -33,7 +38,7 @@ species_abundance <- matrix(0, n_species, n_iter+1)
 
 # Set up the spatialized environement (which is now of dimension env_dim -- IM)
 env_xpos <- env_ypos <- seq(0, 1, length=gridsize+1)
-env_var <- array(rnorm(gridsize^2*env_dim, mean=0, sd=1), dim=c(gridsize, gridsize, env_dim)) # normal distribution (cf. doc)
+env_var <- array(rnorm(gridsize^2*env_dim, mean=0, sd=sqrt(var_env)), dim=c(gridsize, gridsize, env_dim)) # normal distribution (cf. doc)
 # !! The id number of each cell in the lanscape are given by column (R style)
 env_var_df <- matrix(c(env_var), ncol=env_dim)
 
@@ -51,10 +56,19 @@ cell_char$cell_state[id_cell_start] <- sample(rep(1:n_species, each=n_ind_per_sp
 
 # Assigning attribute to species
 sp_attr <- rnorm(n_species, mean=0, sd=sqrt(var_inter))
+if (attribute_scenario %in% c(3, 4)) {
+  sp_beta <- matrix(rnorm(n_species*env_dim, mean=0, sd=sqrt(var_beta)), ncol=env_dim)
+}
 
 # Assigning attribute to individuals
 if (attribute_scenario==1) {
   cell_char$attr_ind[cell_char$cell_state!=0] <- sp_attr[cell_char$cell_state[cell_char$cell_state!=0]]
+}
+if (attribute_scenario==2) {
+  cell_char$attr_ind[cell_char$cell_state!=0] <- sp_attr[cell_char$cell_state[cell_char$cell_state!=0]] + rnorm(n_ind, mean=0, sd=sqrt(var_intra))
+}
+if (attribute_scenario %in% c(3, 4)) {
+  cell_char$attr_ind[cell_char$cell_state!=0] <- sp_attr[cell_char$cell_state[cell_char$cell_state!=0]] + apply(as.matrix(cell_char[cell_char$cell_state!=0, 2:(1+env_dim)]) * sp_beta[cell_char$cell_state[cell_char$cell_state!=0], ], 1, sum)
 }
 
 # Computing performance form attribute
@@ -99,9 +113,16 @@ for (iter in 1:n_iter) {
   # Data-frame of recruits
   n_tot_recruit <- sum(n_recruit_sp$n_recruit)
   recruit_char <- data.frame(id_recruit=1:n_tot_recruit, sp=rep(n_recruit_sp$sp, times=n_recruit_sp$n_recruit))
-  recruit_char$pot_cell <- sample(1:n_cell, n_tot_recruit, replace=TRUE) 
+  recruit_char$pot_cell <- sample(1:n_cell, n_tot_recruit, replace=TRUE)
+  recruit_sp <- as.numeric(as.character(recruit_char$sp))
   if (attribute_scenario==1) {
-    recruit_char$attr <- sp_attr[as.numeric(as.character(recruit_char$sp))]
+    recruit_char$attr <- sp_attr[recruit_sp]
+  }
+  if (attribute_scenario==2) {
+    recruit_char$attr <- sp_attr[recruit_sp] + rnorm(n_tot_recruit, mean=0, sd=sqrt(var_intra))
+  }
+  if (attribute_scenario %in% c(3, 4)) {
+    recruit_char$attr <- sp_attr[recruit_sp] + apply(as.matrix(cell_char[recruit_char$pot_cell, 2:(1+env_dim)]) * sp_beta[recruit_sp, ], 1, sum)
   }
   # Computing performance form attribute
   recruit_char$perf <- (1-nonlin)*recruit_char$attr + nonlin*recruit_char$attr^2
@@ -139,7 +160,9 @@ for (iter in 1:n_iter) {
 # Species richness
 species_richness <- apply(output_cells, 2, FUN=function(x){length(unique(x[x!=0]))})
 
-
+# Species richness by scenario
+sp_rich_scen <- data.frame(matrix(NA, nrow=8, ncol=n_iter+3))
+sp_rich_scen[5, ] <- c(attribute_scenario, nonlin, species_richness)
 
 #=========================================================================================================================
 
