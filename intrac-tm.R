@@ -108,8 +108,12 @@ for (iter in 1:n_iter) {
   # =========================
   
   # Number of new individuals per species
-  n_recruit_sp <- as.data.frame(table(cell_char$cell_state))[-1, ]
+  n_recruit_sp <- as.data.frame(table(cell_char$cell_state))
   names(n_recruit_sp) <- c("sp", "abundance")
+  if(sum(n_recruit_sp$sp==0)>0) {
+    n_recruit_sp = n_recruit_sp[n_recruit_sp$sp!=0,]
+  }
+  
   n_recruit_sp$n_recruit <- floor(n_recruit_sp$abundance*recruitment_rate)
   
   # Data-frame of recruits
