@@ -164,6 +164,18 @@ species_richness <- apply(output_cells, 2, FUN=function(x){length(unique(x[x!=0]
 sp_rich_scen <- data.frame(matrix(NA, nrow=8, ncol=n_iter+3))
 sp_rich_scen[5, ] <- c(attribute_scenario, nonlin, species_richness)
 
+summary(species_abundance)
+
+tot_number_ind=apply(species_abundance, 2, sum)
+
+par(mfrow=c(1,2))
+plot(1:(n_iter+1), species_richness, pch=20, xlab="Iterations", ylab="Species richness", ylim=c(0,22), cex=0.5)
+plot(1:(n_iter+1), species_abundance[1,]/tot_number_ind, type="l", xlab="Iterations", ylab="Species relative abundance", ylim=c(0,1))
+for (i in (2:n_species)) {
+  par(new=T)
+  plot(1:(n_iter+1), species_abundance[i,]/tot_number_ind, type="l", xlab="", ylab="", ylim=c(0,1), col=i, xaxt="n", yaxt="n")
+}
+
 #=========================================================================================================================
 
 # Recruits arriving on empty cells
