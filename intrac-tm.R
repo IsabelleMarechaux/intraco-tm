@@ -81,7 +81,9 @@ output_cells[, 1] <- cell_char$cell_state
 abundance <- as.data.frame(table(cell_char$cell_state))
 names(abundance) <- c("sp", "ab")
 abundance$sp <- as.numeric(as.character(abundance$sp))
-abundance <- abundance[-which(abundance$sp==0), ]
+if(sum(abundance$sp==0)>0) {
+  abundance <- abundance[-which(abundance$sp==0), ]
+}
 species_abundance[abundance$sp, 1] <- abundance$ab 
 
 # Iterations
@@ -148,7 +150,9 @@ for (iter in 1:n_iter) {
   abundance <- as.data.frame(table(cell_char$cell_state))
   names(abundance) <- c("sp", "ab")
   abundance$sp <- as.numeric(as.character(abundance$sp))
-  abundance <- abundance[-which(abundance$sp==0), ]
+  if(sum(abundance$sp==0)>0) {
+    abundance <- abundance[-which(abundance$sp==0), ]
+  }
   species_abundance[abundance$sp, iter+1] <- abundance$ab 
 
 }
