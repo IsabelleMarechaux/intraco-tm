@@ -32,7 +32,7 @@ if(FALSE) { # example
   sublinrel = att_to_perf_function(a = atest, nonlin = -5)
   suplinrel = att_to_perf_function(a = atest, nonlin = 5)
   
-  matplot(atest, cbind(linrel, sublinrel, suplinrel), type = "l", lty = c(1,2,4), col = 1, xlab = "a", ylab = "perf")
+  matplot(atest, cbind(linrel, sublinrel, suplinrel), type = "l", lty = c(1,2,4), col = c("black", "green", "blue"), xlab = "a", ylab = "perf")
   abline(h=c(0,1),lty=3)
 }
 

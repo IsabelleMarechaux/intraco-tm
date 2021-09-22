@@ -16,7 +16,7 @@ recruitment_rate <- 0.5
 
 # Scenarios
 attribute_scenario <- 3 # Scenario 1, 2, 3 or 4 (eg. 1: species differences, no IV)
-nonlin <- 1 # changed to new function of Adams att_to_perf_function 1 linear, 0.5 concave 1.5 convex
+nonlin <- -5 # changed to new function of Adams att_to_perf_function 1 linear, -5 sublinear convex 5 suplinear concave
 
 # Variability
 var_inter <- 1
@@ -91,7 +91,6 @@ species_abundance[abundance$sp, 1] <- abundance$ab
 
 # Iterations
 for (iter in 1:n_iter) {
-  
   # =========================
   # Mortality
   # =========================
@@ -134,6 +133,7 @@ for (iter in 1:n_iter) {
     recruit_char$attr <- sp_attr[recruit_sp] + apply(as.matrix(cell_char[recruit_char$pot_cell, 2:(1+env_dim)]) * sp_beta[recruit_sp, ], 1, sum)
   }
   # Computing performance form attribute
+
   recruit_char$perf <-att_to_perf_function(recruit_char$attr, nonlin = nonlin)  
   
   # Looping on recruits

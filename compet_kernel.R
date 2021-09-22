@@ -15,7 +15,7 @@ compet_step <- function(x_i, x_j){
 
 compet_lin <- function(x_i, x_j){
   if(length(x_j) == 1) {
-    res <- max(x_i - x_j, 0)
+    res <- pmax(x_i - rep(x_j, length.out = length(x_i)), 0)
   }else{
     stop("length of x_j greater than x_i")
   }
@@ -23,7 +23,7 @@ compet_lin <- function(x_i, x_j){
 }
 
 
-compet_logit <- function(x_i, x_j, alpha = 2){
+compet_logistic <- function(x_i, x_j, alpha = 20){
   if(length(x_j) == 1) {
     res <- exp(-alpha*x_j)/(exp(-alpha*x_i) + exp(-alpha*x_j))
   }else{
@@ -34,7 +34,13 @@ compet_logit <- function(x_i, x_j, alpha = 2){
 
 
 
-
+# Plot of teh competition kernel
+if(FALSE) { # example
+ perf_vec <- (0:100)/100
+ plot(perf_vec, compet_step(perf_vec, 0.5), type = "l")
+ lines(perf_vec, compet_lin(perf_vec, 0.5), lty = 2)
+ lines(perf_vec, compet_logistic(perf_vec, 0.5), lty = 2)
+}
 
 
 
