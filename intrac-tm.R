@@ -1,5 +1,6 @@
 # INTRACO theoretical model
-
+source("att_to_perf_function.R")
+source("compet_kernel.R")
 # Parameters
 gridsize <- 100
 env_dim <- 1
@@ -9,13 +10,15 @@ n_ind <- n_species * n_ind_per_species
 n_cell <- gridsize * gridsize
 n_iter <- 200
 
+compet_gen <- compet_lin
 # Demographic rates
 mortality_rate <- 0.05
 recruitment_rate <- 0.5
+recruitment_rate_max <- 5
 
 # Scenarios
 attribute_scenario <- 3 # Scenario 1, 2, 3 or 4 (eg. 1: species differences, no IV)
-nonlin <- 0 # Performance = (1-nonlin)*A + nonlin*A^2
+nonlin <- -5 # changed to new function of Adams att_to_perf_function 1 linear, -5 sublinear convex 5 suplinear concave (MUST BE EITHER BELOW 0 or ABOVE 1)
 
 # Variability
 var_inter <- 1
@@ -62,7 +65,7 @@ if (attribute_scenario %in% c(3, 4)) {
 
 # Assigning attribute to individuals
 if (attribute_scenario==1) {
-  cell_char$attr_ind[cell_char$cell_state!=0] <- sp_attr[cell_char$cell_state[cell_char$cell_state!=0]]
+  cell_char$attr_ind[cell_char$cell_state!=0] <-sp_attr[cell_char$cell_state[cell_char$cell_state!=0]]
 }
 if (attribute_scenario==2) {
   cell_char$attr_ind[cell_char$cell_state!=0] <- sp_attr[cell_char$cell_state[cell_char$cell_state!=0]] + rnorm(n_ind, mean=0, sd=sqrt(var_intra))
@@ -71,8 +74,10 @@ if (attribute_scenario %in% c(3, 4)) {
   cell_char$attr_ind[cell_char$cell_state!=0] <- sp_attr[cell_char$cell_state[cell_char$cell_state!=0]] + apply(as.matrix(cell_char[cell_char$cell_state!=0, 2:(1+env_dim)]) * sp_beta[cell_char$cell_state[cell_char$cell_state!=0], ], 1, sum)
 }
 
+# ALREADY DONE IN att_to_perf_function
 # Computing performance form attribute
-cell_char$perf_ind <- (1-nonlin)*cell_char$attr_ind + nonlin*cell_char$attr_ind^2
+# cell_char$perf_ind <- (1-nonlin)*cell_char$attr_ind + nonlin*cell_char$attr_ind^2
+cell_char$perf_ind <-  att_to_perf_function(cell_char$attr_ind, nonlin = nonlin)
 
 # Output
 # Species richness
@@ -88,7 +93,6 @@ species_abundance[abundance$sp, 1] <- abundance$ab
 
 # Iterations
 for (iter in 1:n_iter) {
-  
   # =========================
   # Mortality
   # =========================
@@ -97,8 +101,10 @@ for (iter in 1:n_iter) {
   occupied_cells <- which(cell_char$cell_state != 0)
   n_occupied_cells <- length(occupied_cells)
   # Mortality envents
-  mort_events <- rbinom(n_occupied_cells, size=1, prob=mortality_rate)
-  cell_char$cell_state[occupied_cells[mort_events==1]] <- 0
+  mort_events <- rbinom(n_occupied_cells, size=1, prob=mortality_rate) 
+  #REPLACE PROB BY 
+  #mort_events <- rbinom(n_occupied_cells, size=1, prob=cell_char$perf_ind[occupied_cells])
+   cell_char$cell_state[occupied_cells[mort_events==1]] <- 0
   # Setting zero for attribute and performance to dead individuals
   cell_char$attr_ind[occupied_cells[mort_events==1]] <- 0
   cell_char$perf_ind[occupied_cells[mort_events==1]] <- 0
@@ -107,15 +113,25 @@ for (iter in 1:n_iter) {
   # Recruitment
   # =========================
   
-  # Number of new individuals per species
+  #Number of new individuals per species
   n_recruit_sp <- as.data.frame(table(cell_char$cell_state))
   names(n_recruit_sp) <- c("sp", "abundance")
   if(sum(n_recruit_sp$sp==0)>0) {
     n_recruit_sp = n_recruit_sp[n_recruit_sp$sp!=0,]
   }
-  
+
   n_recruit_sp$n_recruit <- floor(n_recruit_sp$abundance*recruitment_rate)
+ 
+  # # Number of new individuals per species
+  # n_recruit_sp <- tapply(cell_char$perf_ind*recruitment_rate_max, INDEX = cell_char$cell_state, FUN = sum)
+  # names(n_recruit_sp) <- c("sp", "fecundity")
+  # if(sum(n_recruit_sp$sp==0)>0) {
+  #   n_recruit_sp = n_recruit_sp[n_recruit_sp$sp!=0,]
+  # }
   
+  # n_recruit_sp$n_recruit <- floor(n_recruit_sp$fecundity)
+  
+   
   # Data-frame of recruits
   n_tot_recruit <- sum(n_recruit_sp$n_recruit)
   recruit_char <- data.frame(id_recruit=1:n_tot_recruit, sp=rep(n_recruit_sp$sp, times=n_recruit_sp$n_recruit))
@@ -131,7 +147,8 @@ for (iter in 1:n_iter) {
     recruit_char$attr <- sp_attr[recruit_sp] + apply(as.matrix(cell_char[recruit_char$pot_cell, 2:(1+env_dim)]) * sp_beta[recruit_sp, ], 1, sum)
   }
   # Computing performance form attribute
-  recruit_char$perf <- (1-nonlin)*recruit_char$attr + nonlin*recruit_char$attr^2
+
+  recruit_char$perf <-att_to_perf_function(recruit_char$attr, nonlin = nonlin)  
   
   # Looping on recruits
   for (i in 1:n_tot_recruit) {
@@ -140,7 +157,8 @@ for (iter in 1:n_iter) {
       cell_char$attr_ind[recruit_char$pot_cell[i]] <- recruit_char$attr[i]
       cell_char$perf_ind[recruit_char$pot_cell[i]] <- recruit_char$perf[i]
     }
-    if ( (cell_char$cell_state[recruit_char$pot_cell[i]]!=0) & (recruit_char$perf[i] > cell_char$perf_ind[recruit_char$pot_cell[i]]) ) {
+    if ((cell_char$cell_state[recruit_char$pot_cell[i]]!=0) & 
+         runif(1) < compet_gen(recruit_char$perf[i] , cell_char$perf_ind[recruit_char$pot_cell[i]]))  {
       cell_char$cell_state[recruit_char$pot_cell[i]] <- as.numeric(as.character(recruit_char$sp[i]))
       cell_char$attr_ind[recruit_char$pot_cell[i]] <- recruit_char$attr[i]
       cell_char$perf_ind[recruit_char$pot_cell[i]] <- recruit_char$perf[i]
