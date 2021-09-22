@@ -1,5 +1,6 @@
 # INTRACO theoretical model
-
+source("att_to_perf_function.R")
+source("compet_kernel.R")
 # Parameters
 gridsize <- 100
 env_dim <- 1
@@ -15,7 +16,7 @@ recruitment_rate <- 0.5
 
 # Scenarios
 attribute_scenario <- 3 # Scenario 1, 2, 3 or 4 (eg. 1: species differences, no IV)
-nonlin <- 0 # Performance = (1-nonlin)*A + nonlin*A^2
+nonlin <- 1 # changed to new function of Adams att_to_perf_function 1 linear, 0.5 concave 1.5 convex
 
 # Variability
 var_inter <- 1
@@ -62,7 +63,7 @@ if (attribute_scenario %in% c(3, 4)) {
 
 # Assigning attribute to individuals
 if (attribute_scenario==1) {
-  cell_char$attr_ind[cell_char$cell_state!=0] <- sp_attr[cell_char$cell_state[cell_char$cell_state!=0]]
+  cell_char$attr_ind[cell_char$cell_state!=0] <-sp_attr[cell_char$cell_state[cell_char$cell_state!=0]]
 }
 if (attribute_scenario==2) {
   cell_char$attr_ind[cell_char$cell_state!=0] <- sp_attr[cell_char$cell_state[cell_char$cell_state!=0]] + rnorm(n_ind, mean=0, sd=sqrt(var_intra))
@@ -71,8 +72,10 @@ if (attribute_scenario %in% c(3, 4)) {
   cell_char$attr_ind[cell_char$cell_state!=0] <- sp_attr[cell_char$cell_state[cell_char$cell_state!=0]] + apply(as.matrix(cell_char[cell_char$cell_state!=0, 2:(1+env_dim)]) * sp_beta[cell_char$cell_state[cell_char$cell_state!=0], ], 1, sum)
 }
 
+# ALREADY DONE IN att_to_perf_function
 # Computing performance form attribute
-cell_char$perf_ind <- (1-nonlin)*cell_char$attr_ind + nonlin*cell_char$attr_ind^2
+# cell_char$perf_ind <- (1-nonlin)*cell_char$attr_ind + nonlin*cell_char$attr_ind^2
+cell_char$perf_ind <-  att_to_perf_function(cell_char$attr_ind, nonlin = nonlin)
 
 # Output
 # Species richness
@@ -131,7 +134,7 @@ for (iter in 1:n_iter) {
     recruit_char$attr <- sp_attr[recruit_sp] + apply(as.matrix(cell_char[recruit_char$pot_cell, 2:(1+env_dim)]) * sp_beta[recruit_sp, ], 1, sum)
   }
   # Computing performance form attribute
-  recruit_char$perf <- (1-nonlin)*recruit_char$attr + nonlin*recruit_char$attr^2
+  recruit_char$perf <-att_to_perf_function(recruit_char$attr, nonlin = nonlin)  
   
   # Looping on recruits
   for (i in 1:n_tot_recruit) {
@@ -140,7 +143,8 @@ for (iter in 1:n_iter) {
       cell_char$attr_ind[recruit_char$pot_cell[i]] <- recruit_char$attr[i]
       cell_char$perf_ind[recruit_char$pot_cell[i]] <- recruit_char$perf[i]
     }
-    if ( (cell_char$cell_state[recruit_char$pot_cell[i]]!=0) & (recruit_char$perf[i] > cell_char$perf_ind[recruit_char$pot_cell[i]]) ) {
+    if ((cell_char$cell_state[recruit_char$pot_cell[i]]!=0) & 
+         runif(1) < compet_lin(recruit_char$perf[i] , cell_char$perf_ind[recruit_char$pot_cell[i]]))  {
       cell_char$cell_state[recruit_char$pot_cell[i]] <- as.numeric(as.character(recruit_char$sp[i]))
       cell_char$attr_ind[recruit_char$pot_cell[i]] <- recruit_char$attr[i]
       cell_char$perf_ind[recruit_char$pot_cell[i]] <- recruit_char$perf[i]
