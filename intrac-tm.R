@@ -10,13 +10,15 @@ n_ind <- n_species * n_ind_per_species
 n_cell <- gridsize * gridsize
 n_iter <- 200
 
+compet_gen <- compet_lin
 # Demographic rates
 mortality_rate <- 0.05
 recruitment_rate <- 0.5
+recruitment_rate_max <- 5
 
 # Scenarios
 attribute_scenario <- 3 # Scenario 1, 2, 3 or 4 (eg. 1: species differences, no IV)
-nonlin <- -5 # changed to new function of Adams att_to_perf_function 1 linear, -5 sublinear convex 5 suplinear concave
+nonlin <- -5 # changed to new function of Adams att_to_perf_function 1 linear, -5 sublinear convex 5 suplinear concave (MUST BE EITHER BELOW 0 or ABOVE 1)
 
 # Variability
 var_inter <- 1
@@ -99,8 +101,10 @@ for (iter in 1:n_iter) {
   occupied_cells <- which(cell_char$cell_state != 0)
   n_occupied_cells <- length(occupied_cells)
   # Mortality envents
-  mort_events <- rbinom(n_occupied_cells, size=1, prob=mortality_rate)
-  cell_char$cell_state[occupied_cells[mort_events==1]] <- 0
+  mort_events <- rbinom(n_occupied_cells, size=1, prob=mortality_rate) 
+  #REPLACE PROB BY 
+  #mort_events <- rbinom(n_occupied_cells, size=1, prob=cell_char$perf_ind[occupied_cells])
+   cell_char$cell_state[occupied_cells[mort_events==1]] <- 0
   # Setting zero for attribute and performance to dead individuals
   cell_char$attr_ind[occupied_cells[mort_events==1]] <- 0
   cell_char$perf_ind[occupied_cells[mort_events==1]] <- 0
@@ -109,15 +113,25 @@ for (iter in 1:n_iter) {
   # Recruitment
   # =========================
   
-  # Number of new individuals per species
+  Number of new individuals per species
   n_recruit_sp <- as.data.frame(table(cell_char$cell_state))
   names(n_recruit_sp) <- c("sp", "abundance")
   if(sum(n_recruit_sp$sp==0)>0) {
     n_recruit_sp = n_recruit_sp[n_recruit_sp$sp!=0,]
   }
-  
+
   n_recruit_sp$n_recruit <- floor(n_recruit_sp$abundance*recruitment_rate)
+ 
+  # # Number of new individuals per species
+  # n_recruit_sp <- tapply(cell_char$perf_ind*recruitment_rate_max, INDEX = cell_char$cell_state, FUN = sum)
+  # names(n_recruit_sp) <- c("sp", "fecundity")
+  # if(sum(n_recruit_sp$sp==0)>0) {
+  #   n_recruit_sp = n_recruit_sp[n_recruit_sp$sp!=0,]
+  # }
   
+  # n_recruit_sp$n_recruit <- floor(n_recruit_sp$fecundity)
+  
+   
   # Data-frame of recruits
   n_tot_recruit <- sum(n_recruit_sp$n_recruit)
   recruit_char <- data.frame(id_recruit=1:n_tot_recruit, sp=rep(n_recruit_sp$sp, times=n_recruit_sp$n_recruit))
@@ -144,7 +158,7 @@ for (iter in 1:n_iter) {
       cell_char$perf_ind[recruit_char$pot_cell[i]] <- recruit_char$perf[i]
     }
     if ((cell_char$cell_state[recruit_char$pot_cell[i]]!=0) & 
-         runif(1) < compet_lin(recruit_char$perf[i] , cell_char$perf_ind[recruit_char$pot_cell[i]]))  {
+         runif(1) < compet_gen(recruit_char$perf[i] , cell_char$perf_ind[recruit_char$pot_cell[i]]))  {
       cell_char$cell_state[recruit_char$pot_cell[i]] <- as.numeric(as.character(recruit_char$sp[i]))
       cell_char$attr_ind[recruit_char$pot_cell[i]] <- recruit_char$attr[i]
       cell_char$perf_ind[recruit_char$pot_cell[i]] <- recruit_char$perf[i]
