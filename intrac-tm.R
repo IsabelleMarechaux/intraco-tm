@@ -113,7 +113,7 @@ for (iter in 1:n_iter) {
   # Recruitment
   # =========================
   
-  Number of new individuals per species
+  #Number of new individuals per species
   n_recruit_sp <- as.data.frame(table(cell_char$cell_state))
   names(n_recruit_sp) <- c("sp", "abundance")
   if(sum(n_recruit_sp$sp==0)>0) {
