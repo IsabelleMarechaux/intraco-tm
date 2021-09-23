@@ -30,12 +30,13 @@ iterate_totvar = function(niter = 1000, B = NULL, var_Ek = 0.2, var_cj = 0.2, va
   return(totvar)
 }
 
-find_opt_par = function(tot_var = NULL, nmcmc = 200, niter = 1000, B = NULL, var_Ek = NULL, var_cj = NULL, var_Bi = NULL, S = NULL, D = NULL, minv = 0, maxv = 2) {
+find_opt_par = function(tot_var = NULL, nmcmc = 200, niter = 1000, B = NULL, var_Ek = NULL, var_cj = NULL, var_Bi = NULL, S = NULL, D = NULL, minv = 0, maxv = 2, findB = FALSE) {
   # tot_var: desired total variance
   # nmcmc: number of mcmc iterations
   # minv: minimum value for paramter to be optimised
   # maxv: maximum value for paramter to be optimised
   # note: if no B mat is given, then function simulates niter differnet B matrices and uses the average attribute variance
+  # if findB is TRUE then a B will be identified that attempts to satisfy the tot_var requirement
   
   if(is.null(tot_var)) {
     if(is.null(B)) {
@@ -61,9 +62,12 @@ find_opt_par = function(tot_var = NULL, nmcmc = 200, niter = 1000, B = NULL, var
       var_Bi = estout[1]
     }
     
-    if(is.null(B)) {
+    if(is.null(B) & !findB) {
       diffout[1] = abs(tot_var-mean(iterate_totvar(niter = niter, B = B, var_Ek = var_Ek, var_cj = var_cj, var_Bi = var_Bi, S = S, D = D)))
     } else {
+      if(findB){
+        B = rmvnorm(S, sigma = diag(D)*var_Bi)
+      }
       diffout[1] = abs(tot_var-mean(iterate_totvar(niter = 1, B = B, var_Ek = var_Ek, var_cj = var_cj, var_Bi = var_Bi, S = S, D = D)))
     }
     
@@ -80,6 +84,10 @@ find_opt_par = function(tot_var = NULL, nmcmc = 200, niter = 1000, B = NULL, var
       if(is.null(B)) {
         diffoutnew = abs(tot_var-mean(iterate_totvar(niter = niter, B = B, var_Ek = var_Ek, var_cj = var_cj, var_Bi = var_Bi, S = S, D = D)))
       } else {
+        if(findB){
+          Bold = B
+          B = rmvnorm(S, sigma = diag(D)*var_Bi)
+        }
         diffoutnew = abs(tot_var-mean(iterate_totvar(niter = 1, B = B, var_Ek = var_Ek, var_cj = var_cj, var_Bi = var_Bi, S = S, D = D)))
       }
         
@@ -89,10 +97,14 @@ find_opt_par = function(tot_var = NULL, nmcmc = 200, niter = 1000, B = NULL, var
       } else {
         estout[i] = estout[i-1]
         diffout[i] = diffout[i-1]
+        B = Bold
       }
     }
-    
-    return(data.frame(estout=estout, diffout=diffout))
+    if(findB){
+      return(list(opt = data.frame(estout=estout, diffout=diffout), B = B))
+    } else {
+      return(data.frame(estout=estout, diffout=diffout))
+    }
   }
 }
 
@@ -107,12 +119,18 @@ if(FALSE) {
   var_Ek_est = find_opt_par(tot_var = 0.5, B = B, var_Ek = NULL, var_cj = 0.2, maxv = 2)
   var_Ek_est[nrow(var_Ek_est),]
   # estimate, and absolute difference between achieved and desired total variance
-  plot(var_Ek_est$estout)  # estimate over iterations
-  plot(var_Ek_est$diffout) # distance over iterations
+  plot(var_Ek_est$estout, type = "l")  # estimate over iterations
+  plot(var_Ek_est$diffout, type = "l") # distance over iterations
   
   # find var_cj
   var_cj_est = find_opt_par(tot_var = 0.5, B = B, var_Ek = 0.2, var_cj = NULL, maxv = 2)
   var_cj_est[nrow(var_cj_est),]
+  
+  # find B
+  var_Bi_est = find_opt_par(tot_var = 0.5, B = NULL, var_Ek = 0.2, var_cj = 0.2, S=S, D=D, maxv = 2, findB = TRUE)
+  var_Bi_est$opt[nrow(var_Bi_est$opt),]
+  Bnew = var_Bi_est$B
+  tot_var = find_opt_par(B = Bnew, var_Ek = 0.2, var_cj = 0.2, maxv = 2)
   
   #get total variance
   tot_var = find_opt_par(B = B, var_Ek = 0.2, var_cj = 0.38, maxv = 2)

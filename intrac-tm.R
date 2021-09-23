@@ -1,6 +1,7 @@
 # INTRACO theoretical model
 source("att_to_perf_function.R")
 source("compet_kernel.R")
+source("get_total_var_analytical.R")
 
 # =========================
 # Scenario options 
@@ -41,10 +42,26 @@ recruitment_rate_max <- 5
 # =========================
 # Variability
 # =========================
-var_inter <- 1
-var_intra <- 0.5
-var_env <- 2
-var_beta <- 1
+#var_inter <- 0.5 # NOTE: replaced by Beta
+if(attribute_scenario %in% c(2,4)) {
+  var_intra <- 0.5
+} else {
+  var_intra <- 0
+}
+if(attribute_scenario %in% c(3,4)) {
+  var_env <- 0.5
+} else {
+  var_env <- 0
+}
+var_beta <- 0.5
+
+if(tot_variance == "low") {
+  tot_var = 1
+} else if(tot_variance == "high") {
+  tot_var = 2
+} else {
+  tot_var = NA
+}
 
 # =========================
 # Outputs
@@ -76,26 +93,40 @@ id_cell_start <- sample(n_cell, n_ind, replace = FALSE)
 cell_char$cell_state[id_cell_start] <- sample(rep(1:n_species, each=n_ind_per_species))
 
 # Assigning attribute to species
-sp_attr <- rnorm(n_species, mean=0, sd=sqrt(var_inter))
+# sp_attr <- rnorm(n_species, mean=0, sd=sqrt(var_inter)) # NOTE: replaced by Beta
 if (attribute_scenario %in% c(3, 4)) {
-  sp_beta <- matrix(rnorm(n_species*env_dim, mean=0, sd=sqrt(var_beta)), ncol=env_dim)
+  if(tot_variance == "variable") {
+    sp_beta <- matrix(rnorm(n_species*env_dim, mean=0, sd=sqrt(var_beta)), ncol=env_dim)
+  } else {
+    # find B that meets desired tot_var
+    var_Bi_est <- find_opt_par(tot_var = tot_var, B = NULL, var_Ek = var_env, var_cj = var_intra, S=n_species, D=env_dim, maxv = 2*tot_var, findB = TRUE)
+    sp_beta <- var_Bi_est$B
+    var_beta <- tail(var_Bi_est$opt$estout,1)
+  }
 }
 
+
+
 # Assigning attribute to individuals
-if (attribute_scenario==1) {
-  cell_char$attr_ind[cell_char$cell_state!=0] <-sp_attr[cell_char$cell_state[cell_char$cell_state!=0]]
-}
-if (attribute_scenario==2) {
-  cell_char$attr_ind[cell_char$cell_state!=0] <- sp_attr[cell_char$cell_state[cell_char$cell_state!=0]] + rnorm(n_ind, mean=0, sd=sqrt(var_intra))
-}
-if (attribute_scenario %in% c(3, 4)) {
-  cell_char$attr_ind[cell_char$cell_state!=0] <- sp_attr[cell_char$cell_state[cell_char$cell_state!=0]] + apply(as.matrix(cell_char[cell_char$cell_state!=0, 2:(1+env_dim)]) * sp_beta[cell_char$cell_state[cell_char$cell_state!=0], ], 1, sum)
-}
+cell_char$attr_ind[cell_char$cell_state!=0] <- apply((as.matrix(cell_char[cell_char$cell_state!=0, 2:(1+env_dim)]) + 1/env_dim) * sp_beta[cell_char$cell_state[cell_char$cell_state!=0], ], 1, sum) +
+  rnorm(n_ind, mean=0, sd=sqrt(var_intra))
+# var(cell_char$attr_ind[cell_char$cell_state!=0]) # test total variance
+# tot_var
+
+#if (attribute_scenario==1) {
+#  cell_char$attr_ind[cell_char$cell_state!=0] <-sp_attr[cell_char$cell_state[cell_char$cell_state!=0]]
+#}
+#if (attribute_scenario==2) {
+#  cell_char$attr_ind[cell_char$cell_state!=0] <- sp_attr[cell_char$cell_state[cell_char$cell_state!=0]] + rnorm(n_ind, mean=0, sd=sqrt(var_intra))
+#}
+#if (attribute_scenario %in% c(3, 4)) {
+#  cell_char$attr_ind[cell_char$cell_state!=0] <- sp_attr[cell_char$cell_state[cell_char$cell_state!=0]] + apply(as.matrix(cell_char[cell_char$cell_state!=0, 2:(1+env_dim)]) * sp_beta[cell_char$cell_state[cell_char$cell_state!=0], ], 1, sum)
+#}
 
 # ALREADY DONE IN att_to_perf_function
 # Computing performance from attribute
 # cell_char$perf_ind <- (1-nonlin)*cell_char$attr_ind + nonlin*cell_char$attr_ind^2
-cell_char$perf_ind <-  att_to_perf_function(cell_char$attr_ind, nonlin = nonlin)
+cell_char$perf_ind[cell_char$cell_state!=0] <-  att_to_perf_function(cell_char$attr_ind[cell_char$cell_state!=0], nonlin = nonlin)
 
 # Outputs
 # Species richness
@@ -120,7 +151,7 @@ for (iter in 1:n_iter) {
   n_occupied_cells <- length(occupied_cells)
   # Mortality envents
   if (perf_var=="mortality") {
-    mort_events <- rbinom(n_occupied_cells, size=1, prob=cell_char$perf_ind[occupied_cells])
+    mort_events <- rbinom(n_occupied_cells, size=1, prob=mortality_rate*cell_char$perf_ind[occupied_cells])
   }else{
   mort_events <- rbinom(n_occupied_cells, size=1, prob=mortality_rate)
   }
@@ -145,8 +176,7 @@ for (iter in 1:n_iter) {
     }
     n_recruit_sp$n_recruit <- floor(n_recruit_sp$fecundity)
     
-  }else{
-  
+  } else {
     #Number of new individuals per species
     n_recruit_sp <- as.data.frame(table(cell_char$cell_state))
     names(n_recruit_sp) <- c("sp", "abundance")
@@ -163,71 +193,70 @@ for (iter in 1:n_iter) {
   recruit_char <- data.frame(id_recruit=1:n_tot_recruit, sp=rep(n_recruit_sp$sp, times=n_recruit_sp$n_recruit))
   recruit_char$pot_cell <- sample(1:n_cell, n_tot_recruit, replace=TRUE)
   recruit_sp <- as.numeric(as.character(recruit_char$sp))
-  if (attribute_scenario==1) {
-    recruit_char$attr <- sp_attr[recruit_sp]
-  }
-  if (attribute_scenario==2) {
-    recruit_char$attr <- sp_attr[recruit_sp] + rnorm(n_tot_recruit, mean=0, sd=sqrt(var_intra))
-  }
-  if (attribute_scenario %in% c(3, 4)) {
-    recruit_char$attr <- sp_attr[recruit_sp] + apply(as.matrix(cell_char[recruit_char$pot_cell, 2:(1+env_dim)]) * sp_beta[recruit_sp, ], 1, sum)
-  }
+  
+  recruit_char$attr <- apply(as.matrix(cell_char[recruit_char$pot_cell, 2:(1+env_dim)]) * sp_beta[recruit_sp, ], 1, sum) + rnorm(n_tot_recruit, mean=0, sd=sqrt(var_intra))
+  
+  #if (attribute_scenario==1) {
+  #  recruit_char$attr <- sp_attr[recruit_sp]
+  #}
+  #if (attribute_scenario==2) {
+  #  recruit_char$attr <- sp_attr[recruit_sp] + rnorm(n_tot_recruit, mean=0, sd=sqrt(var_intra))
+  #}
+  #if (attribute_scenario %in% c(3, 4)) {
+  #  recruit_char$attr <- sp_attr[recruit_sp] + apply(as.matrix(cell_char[recruit_char$pot_cell, 2:(1+env_dim)]) * sp_beta[recruit_sp, ], 1, sum)
+  #}
   
   # Computing performance from attribute
-   recruit_char$perf <-att_to_perf_function(recruit_char$attr, nonlin = nonlin)  
+  recruit_char$perf <-att_to_perf_function(recruit_char$attr, nonlin = nonlin)  
   
   # Looping on recruits
   
-   if (per_var=="competitive_hierarchy") {
+  if (perf_var =="competitive_hierarchy") {
     for (i in 1:n_tot_recruit) {
-     if (cell_char$cell_state[recruit_char$pot_cell[i]]==0) {
-       cell_char$cell_state[recruit_char$pot_cell[i]] <- as.numeric(as.character(recruit_char$sp[i]))
-       cell_char$attr_ind[recruit_char$pot_cell[i]] <- recruit_char$attr[i]
-       cell_char$perf_ind[recruit_char$pot_cell[i]] <- recruit_char$perf[i]
+      if (cell_char$cell_state[recruit_char$pot_cell[i]]==0) {
+        cell_char$cell_state[recruit_char$pot_cell[i]] <- as.numeric(as.character(recruit_char$sp[i]))
+        cell_char$attr_ind[recruit_char$pot_cell[i]] <- recruit_char$attr[i]
+        cell_char$perf_ind[recruit_char$pot_cell[i]] <- recruit_char$perf[i]
       }
-     if ((cell_char$cell_state[recruit_char$pot_cell[i]]!=0) & 
+      if ((cell_char$cell_state[recruit_char$pot_cell[i]]!=0) & 
           runif(1) < compet_gen(recruit_char$perf[i] , cell_char$perf_ind[recruit_char$pot_cell[i]]))  {
        cell_char$cell_state[recruit_char$pot_cell[i]] <- as.numeric(as.character(recruit_char$sp[i]))
        cell_char$attr_ind[recruit_char$pot_cell[i]] <- recruit_char$attr[i]
        cell_char$perf_ind[recruit_char$pot_cell[i]] <- recruit_char$perf[i]
       }
     }
-   }else{
-     if (length(table(recruit_char$pot_cell))==n_tot_recruit){
-        for (i in 1:n_tot_recruit) {
-         if (cell_char$cell_state[recruit_char$pot_cell[i]]==0 | (cell_char$cell_state[recruit_char$pot_cell[i]]!=0 & runif(1)<0.5)) {
-            cell_char$cell_state[recruit_char$pot_cell[i]] <- as.numeric(as.character(recruit_char$sp[i]))
-            cell_char$attr_ind[recruit_char$pot_cell[i]] <- recruit_char$attr[i]
-           cell_char$perf_ind[recruit_char$pot_cell[i]] <- recruit_char$perf[i]
-         }
+  } else { # not competitive hierarchy
+    tbltmp = table(recruit_char$pot_cell)
+    if (length(tbltmp)==n_tot_recruit){ # no multiple new recruits per cell
+      for (i in 1:n_tot_recruit) {
+        if (cell_char$cell_state[recruit_char$pot_cell[i]]==0 | (cell_char$cell_state[recruit_char$pot_cell[i]]!=0 & runif(1)<0.5)) {
+          cell_char$cell_state[recruit_char$pot_cell[i]] <- as.numeric(as.character(recruit_char$sp[i]))
+          cell_char$attr_ind[recruit_char$pot_cell[i]] <- recruit_char$attr[i]
+          cell_char$perf_ind[recruit_char$pot_cell[i]] <- recruit_char$perf[i]
         }
-       }
-     }else{
-       for (c in 1:length(which(table(recruit_char$pot_cell)!=1))) {
-          cell=as.integer(row.names(table(recruit_char$pot_cell)))[which(table(recruit_char$pot_cell)!=1)[c]]
-          
-          if (cell_char$cell_state[cell]==0 | (cell_char$cell_state[cell]!=0 & runif(1)>1/(length(which(recruit_char$pot_cell==cell))+1)))
+      }
+    } else {
+      for (c in 1:length(which(tbltmp!=1))) {
+        cell=as.integer(row.names(tbltmp))[which(tbltmp!=1)[c]]
+        
+        if (cell_char$cell_state[cell]==0 | (cell_char$cell_state[cell]!=0 & runif(1)>1/(length(which(recruit_char$pot_cell==cell))+1))) {
           winner=sample(which(recruit_char$pot_cell==cell), 1)
           cell_char$cell_state[cell] <- as.numeric(as.character(recruit_char$sp[winner]))
           cell_char$attr_ind[cell] <- recruit_char$attr[winner]
           cell_char$perf_ind[cell] <- recruit_char$perf[winner]
-       }
-       for (c in 1:length(which(table(recruit_char$pot_cell)==1))){
-         cell=as.integer(row.names(table(recruit_char$pot_cell)))[which(table(recruit_char$pot_cell)==1)[c]]
-         if (cell_char$cell_state[cell]==0 | (cell_char$cell_state[cell]!=0 & runif(1)<0.5)) {
-           r=which(recruit_char$pot_cell==cell)
-           cell_char$cell_state[cell] <- as.numeric(as.character(recruit_char$sp[r]))
-           cell_char$attr_ind[cell] <- recruit_char$attr[r]
-           cell_char$perf_ind[cell] <- recruit_char$perf[r]
-         }
-       }
-       
-       
-     }
-     
-     
-     
+        }
+      }
+      for (c in 1:length(which(tbltmp==1))){
+        cell=as.integer(row.names(tbltmp))[which(tbltmp==1)[c]]
+        if (cell_char$cell_state[cell]==0 | (cell_char$cell_state[cell]!=0 & runif(1)<0.5)) {
+          r=which(recruit_char$pot_cell==cell)
+          cell_char$cell_state[cell] <- as.numeric(as.character(recruit_char$sp[r]))
+          cell_char$attr_ind[cell] <- recruit_char$attr[r]
+          cell_char$perf_ind[cell] <- recruit_char$perf[r]
+        }
+      }
    }
+  }
   
   # Output
   # Species richness
@@ -240,7 +269,8 @@ for (iter in 1:n_iter) {
     abundance <- abundance[-which(abundance$sp==0), ]
   }
   species_abundance[abundance$sp, iter+1] <- abundance$ab 
-
+  
+  message(paste("progress:", iter/n_iter),"\r",appendLF=FALSE)
 }
 
 # ===========================
