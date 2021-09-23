@@ -34,7 +34,7 @@ compet_logistic <- function(x_i, x_j, alpha = 20){
 
 
 
-# Plot of teh competition kernel
+# Plot of the competition kernel
 if(FALSE) { # example
  perf_vec <- (0:100)/100
  plot(perf_vec, compet_step(perf_vec, 0.5), type = "l")
