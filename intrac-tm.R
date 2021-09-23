@@ -94,7 +94,7 @@ cell_char$cell_state[id_cell_start] <- sample(rep(1:n_species, each=n_ind_per_sp
 
 # Assigning attribute to species
 # sp_attr <- rnorm(n_species, mean=0, sd=sqrt(var_inter)) # NOTE: replaced by Beta
-if (attribute_scenario %in% c(3, 4)) {
+#if (attribute_scenario %in% c(3, 4)) {
   if(tot_variance == "variable") {
     sp_beta <- matrix(rnorm(n_species*env_dim, mean=0, sd=sqrt(var_beta)), ncol=env_dim)
   } else {
@@ -103,7 +103,7 @@ if (attribute_scenario %in% c(3, 4)) {
     sp_beta <- var_Bi_est$B
     var_beta <- tail(var_Bi_est$opt$estout,1)
   }
-}
+#}
 
 
 
