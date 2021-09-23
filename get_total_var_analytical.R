@@ -97,7 +97,9 @@ find_opt_par = function(tot_var = NULL, nmcmc = 200, niter = 1000, B = NULL, var
       } else {
         estout[i] = estout[i-1]
         diffout[i] = diffout[i-1]
-        B = Bold
+        if(findB){
+          B = Bold
+        }
       }
     }
     if(findB){
@@ -106,6 +108,100 @@ find_opt_par = function(tot_var = NULL, nmcmc = 200, niter = 1000, B = NULL, var
       return(data.frame(estout=estout, diffout=diffout))
     }
   }
+}
+
+
+if(FALSE) {
+ # example of "grid" of variabilities
+  S = 14; D = 3
+  tot_var = c(0.2, 0.4, 0.8)
+  
+  # Ek = 0, cj = 0
+  var_Bi_est = find_opt_par(tot_var = tot_var[1], B = NULL, var_Ek = 0, var_cj = 0, S = S, D = D, maxv = 2, findB = TRUE)
+  tail(var_Bi_est$opt,1)
+  B1 = var_Bi_est$B
+  var_Bi = c(tail(var_Bi_est$opt,1)[1,1], NA, NA)
+  
+  var_Bi_est = find_opt_par(tot_var = tot_var[2], B = NULL, var_Ek = 0, var_cj = 0, S = S, D = D, maxv = 2, findB = TRUE)
+  tail(var_Bi_est$opt,1)
+  B2 = var_Bi_est$B
+  var_Bi[2] = tail(var_Bi_est$opt,1)[1,1]
+  
+  var_Bi_est = find_opt_par(tot_var = tot_var[3], B = NULL, var_Ek = 0, var_cj = 0, S = S, D = D, maxv = 4, findB = TRUE)
+  tail(var_Bi_est$opt,1)
+  B3 = var_Bi_est$B
+  var_Bi[3] = tail(var_Bi_est$opt,1)[1,1]
+  var_Bi
+  
+  # Ek > 0, cj = 0
+  var_Ek_cjzero = matrix(nrow = 3, ncol = 3)
+  rownames(var_Ek_cjzero) = c("B1", "B2", "B3")
+  colnames(var_Ek_cjzero) = c("T1", "T2", "T3")
+  
+  var_Ek_est = find_opt_par(tot_var = tot_var[2], B = B1, var_Ek = NULL, var_cj = 0, maxv = 2)
+  tail(var_Ek_est,1)
+  var_Ek_cjzero[1,2] = tail(var_Ek_est)[1,1]
+  
+  var_Ek_est = find_opt_par(tot_var = tot_var[3], B = B1, var_Ek = NULL, var_cj = 0, maxv = 2)
+  tail(var_Ek_est,1)
+  var_Ek_cjzero[1,3] = tail(var_Ek_est)[1,1]
+  
+  var_Ek_est = find_opt_par(tot_var = tot_var[3], B = B2, var_Ek = NULL, var_cj = 0, maxv = 2)
+  tail(var_Ek_est,1)
+  var_Ek_cjzero[2,3] = tail(var_Ek_est)[1,1]
+  var_Ek_cjzero
+  
+  # Ek = 0, cj > 0
+  var_cj_Ekzero = matrix(nrow = 3, ncol = 3)
+  rownames(var_cj_Ekzero) = c("B1", "B2", "B3")
+  colnames(var_cj_Ekzero) = c("T1", "T2", "T3")
+  
+  var_cj_est = find_opt_par(tot_var = tot_var[2], B = B1, var_Ek = 0, var_cj = NULL, maxv = 2)
+  tail(var_cj_est,1)
+  var_cj_Ekzero[1,2] = tail(var_cj_est)[1,1]
+  
+  var_cj_est = find_opt_par(tot_var = tot_var[3], B = B1, var_Ek = 0, var_cj = NULL, maxv = 2)
+  tail(var_cj_est,1)
+  var_cj_Ekzero[1,3] = tail(var_cj_est)[1,1]
+  
+  var_cj_est = find_opt_par(tot_var = tot_var[3], B = B2, var_Ek = 0, var_cj = NULL, maxv = 2)
+  tail(var_cj_est,1)
+  var_cj_Ekzero[2,3] = tail(var_cj_est)[1,1]
+  var_cj_Ekzero
+  
+  # Ek > 0, cj > 0
+  var_Ek_cj = list(matrix(nrow = 3, ncol = 3), matrix(nrow = 3, ncol = 3))
+  rownames(var_Ek_cj[[1]]) = rownames(var_Ek_cj[[2]]) = c("B1", "B2", "B3")
+  colnames(var_Ek_cj[[1]]) = colnames(var_Ek_cj[[2]]) = c("T1", "T2", "T3")
+  names(var_Ek_cj) = c("Ek", "cj")
+  
+  var_Ek_est = find_opt_par(tot_var = tot_var[2], B = B1, var_Ek = NULL, var_cj = var_cj_Ekzero[1,2]/2, maxv = 2)
+  tail(var_Ek_est,1)
+  var_Ek_cj[[1]][1,2] = tail(var_Ek_est)[1,1]
+  
+  var_Ek_est = find_opt_par(tot_var = tot_var[3], B = B1, var_Ek = NULL, var_cj = var_cj_Ekzero[1,3]/2, maxv = 2)
+  tail(var_Ek_est,1)
+  var_Ek_cj[[1]][1,3] = tail(var_Ek_est)[1,1]
+  
+  var_Ek_est = find_opt_par(tot_var = tot_var[3], B = B2, var_Ek = NULL, var_cj = var_cj_Ekzero[2,3]/2, maxv = 2)
+  tail(var_Ek_est,1)
+  var_Ek_cj[[1]][2,3] = tail(var_Ek_est)[1,1]
+  
+  
+  var_Ek_cj[[2]][1,2] = var_cj_Ekzero[1,2]/2
+  var_Ek_cj[[2]][1,3] = var_cj_Ekzero[1,3]/2
+  var_Ek_cj[[2]][2,3] = var_cj_Ekzero[2,3]/2
+  
+  
+  
+  # summarise scenarios
+  var_Bi
+  tot_var
+  
+  var_Ek_cjzero
+  var_cj_Ekzero
+  
+  var_Ek_cj
 }
 
 
