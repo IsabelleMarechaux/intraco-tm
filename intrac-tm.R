@@ -11,6 +11,10 @@ source("get_total_var_analytical.R")
 perf_var <- "fecundity"  # to be chosen among "mortality", "competitive_hierarchy", "fecundity"
 ## how the attribute vary across individuals ?
 attribute_scenario <- 1 # to be chosen among 1, 2, 3 or 4 (eg. 1: species differences, no IV)
+attriute_letter <- "a"
+# options for scenario 1: Scen1a, Scen1b, Scen1c, Scen2, Scen3, Scen4
+# see var_par_mat below for details
+
 ## how does the performance vary with the attribute ?
 nonlin <- 1 # changed to new function of Adams att_to_perf_function 1 linear, -5 sublinear convex 5 suplinear concave (MUST BE EITHER BELOW 0 or ABOVE 1)
 ## is the total variance in all individuals' attribute constant across scenarios or not ? 
@@ -18,6 +22,13 @@ tot_variance <- "low" # to be chosen among: "low", "high", "variable"
 ## if perf_var="competitive_hierarchy", how competitive hierarchy translates into probability of recruitement?
 compet_fun <- "lin"
 compet_gen <- compet_lin # to be chosen among "compet_lin", "compet_logistic", "compet_step"
+
+# save name of total scenario type
+if(attribute_scenario!=1) {
+  variance_senario <- paste("Scen", attribute_scenario, sep = "")
+} else {
+  variance_senario <- paste("Scen", attribute_scenario, attriute_letter, sep = "")
+}
 
 
 # =========================
@@ -43,25 +54,41 @@ recruitment_rate_max <- 5
 # =========================
 # Variability
 # =========================
-#var_inter <- 0.5 # NOTE: replaced by Beta
-if(attribute_scenario %in% c(2,4)) {
-  var_intra <- 0.5
-} else {
-  var_intra <- 0
-}
-if(attribute_scenario %in% c(3,4)) {
-  var_env <- 0.5
-} else {
-  var_env <- 0
-}
-var_beta <- 0.5
+sp_beta_save = NULL # input a specific beta matrix here if desired
 
-if(tot_variance == "low") {
-  tot_var = 1
-} else if(tot_variance == "high") {
-  tot_var = 2
+if(tot_variance == "variable") {
+  var_beta = 0.5
+  var_intra = 0.5
+  var_env = 0.5
+  
+  source("get_vars_for_scenarios.R")
+  
+  if(variance_senario=="Scen1c") {
+    sp_beta = sp_beta_1c
+  } else {
+    sp_beta = sp_beta_save
+  }
+  var_it = var_par_mat[variance_senario,"var_it"]
+  
 } else {
-  tot_var = NA
+  if(tot_variance == "low") {
+    tot_var = 1
+  } else {
+    tot_var = 2
+  }
+  source("get_vars_for_scenarios.R")
+  
+  var_beta = var_par_mat[variance_senario,"var_beta"]
+  var_intra = var_par_mat[variance_senario,"var_intra"]
+  var_env = var_par_mat[variance_senario,"var_env"]
+  var_it = var_par_mat[variance_senario,"var_it"]
+  
+  #sp_beta and sp_beta_1c have been automatically updated
+  if(variance_senario=="Scen1c") {
+    sp_beta = sp_beta_1c
+  } else {
+    sp_beta = sp_beta_save
+  }
 }
 
 # =========================
@@ -93,40 +120,16 @@ id_cell_start <- sample(n_cell, n_ind, replace = FALSE)
 # Fill the cells with individuals of a given species
 cell_char$cell_state[id_cell_start] <- sample(rep(1:n_species, each=n_ind_per_species))
 
-# Assigning attribute to species
-# sp_attr <- rnorm(n_species, mean=0, sd=sqrt(var_inter)) # NOTE: replaced by Beta
-#if (attribute_scenario %in% c(3, 4)) {
-  if(tot_variance == "variable") {
-    sp_beta <- matrix(rnorm(n_species*env_dim, mean=0, sd=sqrt(var_beta)), ncol=env_dim)
-  } else {
-    # find B that meets desired tot_var
-    var_Bi_est <- find_opt_par(tot_var = tot_var, B = NULL, var_Ek = var_env, var_cj = var_intra, S=n_species, D=env_dim, maxv = 2*tot_var, findB = TRUE)
-    sp_beta <- var_Bi_est$B
-    var_beta <- tail(var_Bi_est$opt$estout,1)
-  }
-#}
-
-
 
 # Assigning attribute to individuals
 cell_char$attr_ind[cell_char$cell_state!=0] <- apply((as.matrix(cell_char[cell_char$cell_state!=0, 2:(1+env_dim)]) + 1/env_dim) * sp_beta[cell_char$cell_state[cell_char$cell_state!=0], ], 1, sum) +
   rnorm(n_ind, mean=0, sd=sqrt(var_intra))
-# var(cell_char$attr_ind[cell_char$cell_state!=0]) # test total variance
-# tot_var
-
-#if (attribute_scenario==1) {
-#  cell_char$attr_ind[cell_char$cell_state!=0] <-sp_attr[cell_char$cell_state[cell_char$cell_state!=0]]
-#}
-#if (attribute_scenario==2) {
-#  cell_char$attr_ind[cell_char$cell_state!=0] <- sp_attr[cell_char$cell_state[cell_char$cell_state!=0]] + rnorm(n_ind, mean=0, sd=sqrt(var_intra))
-#}
-#if (attribute_scenario %in% c(3, 4)) {
-#  cell_char$attr_ind[cell_char$cell_state!=0] <- sp_attr[cell_char$cell_state[cell_char$cell_state!=0]] + apply(as.matrix(cell_char[cell_char$cell_state!=0, 2:(1+env_dim)]) * sp_beta[cell_char$cell_state[cell_char$cell_state!=0], ], 1, sum)
-#}
+if(variance_senario == "Scen1b") {
+  cell_char$attr_ind[cell_char$cell_state!=0] = cell_char$attr_ind[cell_char$cell_state!=0]+rnorm(sum(cell_char$cell_state!=0),0,sqrt(var_it))
+}
 
 # ALREADY DONE IN att_to_perf_function
 # Computing performance from attribute
-# cell_char$perf_ind <- (1-nonlin)*cell_char$attr_ind + nonlin*cell_char$attr_ind^2
 cell_char$perf_ind[cell_char$cell_state!=0] <-  att_to_perf_function(cell_char$attr_ind[cell_char$cell_state!=0], nonlin = nonlin)
 
 # Outputs
@@ -144,6 +147,14 @@ species_abundance[abundance$sp, 1] <- abundance$ab
 # Iterations
 for (iter in 1:n_iter) {
   # =========================
+  # Epsilon (IT) variability: only works for scenario 1b
+  # =========================
+  if(variance_senario == "Scen1b") {
+    cell_char$attr_ind[cell_char$cell_state!=0] = cell_char$attr_ind[cell_char$cell_state!=0]+rnorm(sum(cell_char$cell_state!=0),0,sqrt(var_it))
+    cell_char$perf_ind[cell_char$cell_state!=0] <-  att_to_perf_function(cell_char$attr_ind[cell_char$cell_state!=0], nonlin = nonlin)
+  }
+  
+  # =========================
   # Mortality
   # =========================
   
@@ -157,16 +168,11 @@ for (iter in 1:n_iter) {
   mort_events <- rbinom(n_occupied_cells, size=1, prob=mortality_rate)
   }
   cell_char$cell_state[occupied_cells[mort_events==1]] <- 0
-  # Setting zero for attribute and performance to dead individuals
-  #cell_char$attr_ind[occupied_cells[mort_events==1]] <- 0
   cell_char$perf_ind[occupied_cells[mort_events==1]] <- -1
   
   # =========================
   # Recruitment
   # =========================
-  
-  
-  
   if (perf_var=="fecundity") {
     
     # Number of new individuals per species
@@ -195,15 +201,9 @@ for (iter in 1:n_iter) {
   
   recruit_char$attr <- apply(as.matrix(cell_char[recruit_char$pot_cell, 2:(1+env_dim)]) * sp_beta[recruit_sp, ], 1, sum) + rnorm(n_tot_recruit, mean=0, sd=sqrt(var_intra))
   
-  #if (attribute_scenario==1) {
-  #  recruit_char$attr <- sp_attr[recruit_sp]
-  #}
-  #if (attribute_scenario==2) {
-  #  recruit_char$attr <- sp_attr[recruit_sp] + rnorm(n_tot_recruit, mean=0, sd=sqrt(var_intra))
-  #}
-  #if (attribute_scenario %in% c(3, 4)) {
-  #  recruit_char$attr <- sp_attr[recruit_sp] + apply(as.matrix(cell_char[recruit_char$pot_cell, 2:(1+env_dim)]) * sp_beta[recruit_sp, ], 1, sum)
-  #}
+  if(variance_senario == "Scen1b") {
+    recruit_char$attr = recruit_char$attr+rnorm(length(recruit_char$attr),0,sqrt(var_it))
+  }
   
   # Computing performance from attribute
   recruit_char$perf <-att_to_perf_function(recruit_char$attr, nonlin = nonlin)  
@@ -269,7 +269,7 @@ for (iter in 1:n_iter) {
   }
   species_abundance[abundance$sp, iter+1] <- abundance$ab 
   
-  message(paste("progress:", iter/n_iter),"\r",appendLF=FALSE)
+  message(paste("progress:", round(iter/n_iter,3)),"\r",appendLF=FALSE)
 }
 
 # ===========================
