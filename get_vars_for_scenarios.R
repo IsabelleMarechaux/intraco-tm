@@ -63,11 +63,10 @@ if(tot_variance == "variable") {
   if(is.null(sp_beta_save)) {
     var_Bi_est <- find_opt_par(tot_var = tot_var/2, B = NULL, var_Ek = 0, var_cj = 0, S=n_species, D=env_dim, maxv = 2*tot_var, findB = TRUE)
     sp_beta <- var_Bi_est$B
-    var_beta <- tail(var_Bi_est$opt$estout,1)
   } else {
     sp_beta = sp_beta_save
-    var_beta = var(c(sp_beta))
   }
+  var_beta = var(c(sp_beta))
   var_par_mat[c("Scen1a", "Scen1b", "Scen2", "Scen3", "Scen4"),"var_beta"] = var_beta
   
     
