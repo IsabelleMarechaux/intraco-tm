@@ -5,7 +5,7 @@ INTRACO theoretical model
 
 Scenarios:
 
-A scenario = a shape of attribute A + a function Performance=f(A) + a definition of Performance
+A scenario = a shape of attribute A + a function Performance=f(A) + a definition of Performance + total variance fixed or not
 
 * Attribute:
 1. Species differences, no IV: A(i,j,k) = a_i
@@ -34,3 +34,9 @@ f(A)=ax^b
 1. ability to preempt a cell
 2. fecundity (number of seeds per individual)
 3. mortality rate 
+
+
+* Total variance:
+1. fixed to a low value
+2. fixed to a high value
+3. not fixed (increases when you add a new level of attribute variation).
