@@ -69,6 +69,9 @@ if(tot_variance == "variable") {
     sp_beta = sp_beta_save
   }
   var_it = var_par_mat[variance_senario,"var_it"]
+  var_beta = var_par_mat[variance_senario,"var_beta"]
+  var_intra = var_par_mat[variance_senario,"var_intra"]
+  var_env = var_par_mat[variance_senario,"var_env"]
   
 } else {
   if(tot_variance == "low") {
