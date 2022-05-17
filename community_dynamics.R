@@ -223,48 +223,69 @@ for (iter in 1:n_iter) {
     }
   } else { # not competitive hierarchy
     tbltmp = table(recruit_char$pot_cell)
-    if (length(tbltmp)==n_tot_recruit){ # no multiple new recruits per cell
-      for (i in 1:n_tot_recruit) {
-        if (cell_char$cell_state[recruit_char$pot_cell[i]]==0 | (cell_char$cell_state[recruit_char$pot_cell[i]]!=0 & runif(1)<0.5)) {
-          cell_char$cell_state[recruit_char$pot_cell[i]] <- as.numeric(as.character(recruit_char$sp[i]))
-          cell_char$attr_ind[recruit_char$pot_cell[i]] <- recruit_char$attr[i]
-          if(variance_scenario == "Scen1b") {
-            cell_char$attr_ind[recruit_char$pot_cell[i]] <- recruit_char$attr0[i]
-          } else {
-            cell_char$attr_ind[recruit_char$pot_cell[i]] <- recruit_char$attr[i]
-          }
-          cell_char$perf_ind[recruit_char$pot_cell[i]] <- recruit_char$perf[i]
-        }
-      }
+    # for each potential colonist, overall probability that any individual can invade the potential cell
+    p_replace = c(0.5,1)[as.numeric((cell_char$cell_state[recruit_char$pot_cell])==0)+1] # 1 if cell is occupied, 0.5 otherwise
+    # for each potential colonist, probability that the specific individual will invade the potential cell
+    # i.e. multiply p_replace by 1/n, where n is the number of other potential recruits
+    p_replace = p_replace*(1/tbltmp[match(recruit_char$pot_cell, row.names(tbltmp))])
+    # figure out which individuals have successfully colonized sites
+    names(p_replace) = 1:length(p_replace)
+    col_success = as.numeric(tapply(p_replace, recruit_char$pot_cell, function(x) sample(c(names(x), "0"), 1, prob = c(x, 1-sum(x)))))
+    # get indexes of individuals in recruit_char that have successfully recruited
+    col_success = sort(unique(col_success))
+    
+    # update arrays
+    cell_char$cell_state[recruit_char$pot_cell[col_success]] <- as.numeric(as.character(recruit_char$sp[col_success]))
+    if(variance_scenario == "Scen1b") {
+      cell_char$attr_ind[recruit_char$pot_cell[col_success]] <- recruit_char$attr0[col_success]
     } else {
-      for (c in 1:length(which(tbltmp!=1))) { # loop over the cells are in competition for recruitement among new recruits
-        cell=as.integer(row.names(tbltmp))[which(tbltmp!=1)[c]]
-        
-        if (cell_char$cell_state[cell]==0 | (cell_char$cell_state[cell]!=0 & runif(1)>1/(length(which(recruit_char$pot_cell==cell))+1))) {
-          winner=sample(which(recruit_char$pot_cell==cell), 1)
-          cell_char$cell_state[cell] <- as.numeric(as.character(recruit_char$sp[winner]))
-          if(variance_scenario == "Scen1b") {
-            cell_char$attr_ind[cell] <- recruit_char$attr0[winner]
-          } else {
-            cell_char$attr_ind[cell] <- recruit_char$attr[winner]
-          }
-          cell_char$perf_ind[cell] <- recruit_char$perf[winner]
-        }
-      }
-      for (c in 1:length(which(tbltmp==1))){
-        cell=as.integer(row.names(tbltmp))[which(tbltmp==1)[c]]
-        if (cell_char$cell_state[cell]==0 | (cell_char$cell_state[cell]!=0 & runif(1)<0.5)) {
-          r=which(recruit_char$pot_cell==cell)
-          cell_char$cell_state[cell] <- as.numeric(as.character(recruit_char$sp[r]))
-          if(variance_scenario == "Scen1b") {
-            cell_char$attr_ind[cell] <- recruit_char$attr0[r]
-          } else {
-            cell_char$attr_ind[cell] <- recruit_char$attr[r]
-          }
-          cell_char$perf_ind[cell] <- recruit_char$perf[r]
-        }
-      }
+      cell_char$attr_ind[recruit_char$pot_cell[col_success]] <- recruit_char$attr[col_success]
     }
+    cell_char$perf_ind[recruit_char$pot_cell[col_success]] <- recruit_char$perf[col_success]
+    
+    
+    #if (length(tbltmp)==n_tot_recruit){ # no multiple new recruits per cell
+    #  for (i in 1:n_tot_recruit) {
+    #    if (cell_char$cell_state[recruit_char$pot_cell[i]]==0 | (cell_char$cell_state[recruit_char$pot_cell[i]]!=0 & runif(1)<0.5)) {
+    #      cell_char$cell_state[recruit_char$pot_cell[i]] <- as.numeric(as.character(recruit_char$sp[i]))
+    #      cell_char$attr_ind[recruit_char$pot_cell[i]] <- recruit_char$attr[i]
+    #      if(variance_scenario == "Scen1b") {
+    #        cell_char$attr_ind[recruit_char$pot_cell[i]] <- recruit_char$attr0[i]
+    #      } else {
+    #        cell_char$attr_ind[recruit_char$pot_cell[i]] <- recruit_char$attr[i]
+    #      }
+    #      cell_char$perf_ind[recruit_char$pot_cell[i]] <- recruit_char$perf[i]
+    #    }
+    #  }
+    #} else {
+    #  for (c in 1:length(which(tbltmp!=1))) { # loop over the cells are in competition for recruitement among new recruits
+    #    cell=as.integer(row.names(tbltmp))[which(tbltmp!=1)[c]]
+    #    
+    #    if (cell_char$cell_state[cell]==0 | (cell_char$cell_state[cell]!=0 & runif(1)>1/(length(which(recruit_char$pot_cell==cell))+1))) {
+    #      winner=sample(which(recruit_char$pot_cell==cell), 1)
+    #      cell_char$cell_state[cell] <- as.numeric(as.character(recruit_char$sp[winner]))
+    #      if(variance_scenario == "Scen1b") {
+    #        cell_char$attr_ind[cell] <- recruit_char$attr0[winner]
+    #      } else {
+    #        cell_char$attr_ind[cell] <- recruit_char$attr[winner]
+    #      }
+    #      cell_char$perf_ind[cell] <- recruit_char$perf[winner]
+    #    }
+    #  }
+    #  for (c in 1:length(which(tbltmp==1))){
+    #    cell=as.integer(row.names(tbltmp))[which(tbltmp==1)[c]]
+    #    if (cell_char$cell_state[cell]==0 | (cell_char$cell_state[cell]!=0 & runif(1)<0.5)) {
+    #      r=which(recruit_char$pot_cell==cell)
+    #      cell_char$cell_state[cell] <- as.numeric(as.character(recruit_char$sp[r]))
+    #      if(variance_scenario == "Scen1b") {
+    #        cell_char$attr_ind[cell] <- recruit_char$attr0[r]
+    #      } else {
+    #        cell_char$attr_ind[cell] <- recruit_char$attr[r]
+    #      }
+    #      cell_char$perf_ind[cell] <- recruit_char$perf[r]
+    #    }
+    #  }
+    #}
   }
   
   #### Outputs
