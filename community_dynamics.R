@@ -7,8 +7,12 @@ rm(list = ls())
 #directory_reading <- "/Users/marechaux/OneDrive/INTRACO/Theoretical_model/workshop2"
 #directory_writing <- "/Users/marechaux/OneDrive/INTRACO/Theoretical_model/workshop2"
 
-directory_reading <- "/home/marechauxi/INTRACO"
-directory_writing <- "/lustre/marechauxi" # for the cluster
+#directory_reading <- "/home/marechauxi/INTRACO"
+#directory_writing <- "/lustre/marechauxi" # for the cluster
+
+directory_reading <- "~/Dropbox/Projects/072_INTRACO/intraco-tm/"
+directory_writing <- "~/Dropbox/Projects/072_INTRACO/intraco-tm/output" # for the cluster
+
 
 setwd(directory_reading) 
 
@@ -29,12 +33,12 @@ n_iter <- 1500
 
 simulation_scenarios <- read.table(file=paste(directory_reading, "simulation_scenarios.txt", sep="/"), header=TRUE, dec=".", sep="\t")
 #s <- args[1] # for cluster
-#s <- 1
+s <- 1
 
 slurm_arrayid <- Sys.getenv('SLURM_ARRAY_TASK_ID')
 # coerce the value to an integer
-s <- as.integer(slurm_arrayid)
-
+#s <- as.integer(slurm_arrayid)
+## TODO: un-comment line above to run on HPC
 
 #message(paste("simulation:", s),"\r",appendLF=FALSE)
 
@@ -120,7 +124,13 @@ abundance$sp <- as.numeric(as.character(abundance$sp))
 if(sum(abundance$sp==0)>0) {
   abundance <- abundance[-which(abundance$sp==0), ]
 }
-species_abundance[abundance$sp, 1] <- abundance$ab 
+species_abundance[abundance$sp, 1] <- abundance$ab
+
+# For scenario 1b, create initial attribute column
+if(variance_scenario == "Scen1b") {
+  cell_char$attr_ind0 = cell_char$attr_ind
+}
+
 
 # Iterations
 for (iter in 1:n_iter) {
@@ -128,10 +138,10 @@ for (iter in 1:n_iter) {
   # =========================
   # Epsilon (IT) variability: only works for scenario 1b
   # =========================
-  //if(variance_scenario == "Scen1b") {
-    //cell_char$attr_ind[cell_char$cell_state!=0] = cell_char$attr_ind[cell_char$cell_state!=0]+rnorm(sum(cell_char$cell_state!=0),0,sqrt(var_it))
-    //cell_char$perf_ind[cell_char$cell_state!=0] <-  att_to_perf_function(cell_char$attr_ind[cell_char$cell_state!=0], nonlin = nonlin)
-  //}
+  if(variance_scenario == "Scen1b") {
+    cell_char$attr_ind[cell_char$cell_state!=0] = cell_char$attr_ind0[cell_char$cell_state!=0]+rnorm(sum(cell_char$cell_state!=0),0,sqrt(var_it))
+    cell_char$perf_ind[cell_char$cell_state!=0] <-  att_to_perf_function(cell_char$attr_ind[cell_char$cell_state!=0], nonlin = nonlin)
+  }
   
   # =========================
   # Mortality
@@ -178,10 +188,11 @@ for (iter in 1:n_iter) {
   recruit_char$pot_cell <- sample(1:n_cell, n_tot_recruit, replace=TRUE)
   recruit_sp <- as.numeric(as.character(recruit_char$sp))
   
-  recruit_char$attr <- apply(as.matrix(cell_char[recruit_char$pot_cell, 2:(1+env_dim)]) * sp_beta[recruit_sp, ], 1, sum) + rnorm(n_tot_recruit, mean=0, sd=sqrt(var_intra))
-  
   if(variance_scenario == "Scen1b") {
-    recruit_char$attr = recruit_char$attr+rnorm(length(recruit_char$attr),0,sqrt(var_it))
+    recruit_char$attr0 = apply(as.matrix(cell_char[recruit_char$pot_cell, 2:(1+env_dim)]) * sp_beta[recruit_sp, ], 1, sum) + rnorm(n_tot_recruit, mean=0, sd=sqrt(var_intra))
+    recruit_char$attr = recruit_char$attr0+rnorm(length(recruit_char$attr),0,sqrt(var_it))
+  } else {
+    recruit_char$attr <- apply(as.matrix(cell_char[recruit_char$pot_cell, 2:(1+env_dim)]) * sp_beta[recruit_sp, ], 1, sum) + rnorm(n_tot_recruit, mean=0, sd=sqrt(var_intra))
   }
   
   # Computing performance from attribute
@@ -193,13 +204,20 @@ for (iter in 1:n_iter) {
     for (i in 1:n_tot_recruit) {
       if (cell_char$cell_state[recruit_char$pot_cell[i]]==0) { # if the potential cell is empty, then the individual is recruited
         cell_char$cell_state[recruit_char$pot_cell[i]] <- as.numeric(as.character(recruit_char$sp[i]))
-        cell_char$attr_ind[recruit_char$pot_cell[i]] <- recruit_char$attr[i]
+        if(variance_scenario == "Scen1b") {
+          cell_char$attr_ind[recruit_char$pot_cell[i]] <- recruit_char$attr0[i]
+        } else {
+          cell_char$attr_ind[recruit_char$pot_cell[i]] <- recruit_char$attr[i]
+        }
         cell_char$perf_ind[recruit_char$pot_cell[i]] <- recruit_char$perf[i]
       }
       if ((cell_char$cell_state[recruit_char$pot_cell[i]]!=0) &  # if the potential cell is occupied, then use the competition function to decide if it wins the site or not
           runif(1) < compet_gen(recruit_char$perf[i] , cell_char$perf_ind[recruit_char$pot_cell[i]]))  {
         cell_char$cell_state[recruit_char$pot_cell[i]] <- as.numeric(as.character(recruit_char$sp[i]))
         cell_char$attr_ind[recruit_char$pot_cell[i]] <- recruit_char$attr[i]
+        if(variance_scenario == "Scen1b") {
+          cell_char$attr_ind[recruit_char$pot_cell[i]] <- recruit_char$attr0[i]
+        }
         cell_char$perf_ind[recruit_char$pot_cell[i]] <- recruit_char$perf[i]
       }
     }
@@ -210,6 +228,11 @@ for (iter in 1:n_iter) {
         if (cell_char$cell_state[recruit_char$pot_cell[i]]==0 | (cell_char$cell_state[recruit_char$pot_cell[i]]!=0 & runif(1)<0.5)) {
           cell_char$cell_state[recruit_char$pot_cell[i]] <- as.numeric(as.character(recruit_char$sp[i]))
           cell_char$attr_ind[recruit_char$pot_cell[i]] <- recruit_char$attr[i]
+          if(variance_scenario == "Scen1b") {
+            cell_char$attr_ind[recruit_char$pot_cell[i]] <- recruit_char$attr0[i]
+          } else {
+            cell_char$attr_ind[recruit_char$pot_cell[i]] <- recruit_char$attr[i]
+          }
           cell_char$perf_ind[recruit_char$pot_cell[i]] <- recruit_char$perf[i]
         }
       }
@@ -220,7 +243,11 @@ for (iter in 1:n_iter) {
         if (cell_char$cell_state[cell]==0 | (cell_char$cell_state[cell]!=0 & runif(1)>1/(length(which(recruit_char$pot_cell==cell))+1))) {
           winner=sample(which(recruit_char$pot_cell==cell), 1)
           cell_char$cell_state[cell] <- as.numeric(as.character(recruit_char$sp[winner]))
-          cell_char$attr_ind[cell] <- recruit_char$attr[winner]
+          if(variance_scenario == "Scen1b") {
+            cell_char$attr_ind[cell] <- recruit_char$attr0[winner]
+          } else {
+            cell_char$attr_ind[cell] <- recruit_char$attr[winner]
+          }
           cell_char$perf_ind[cell] <- recruit_char$perf[winner]
         }
       }
@@ -229,7 +256,11 @@ for (iter in 1:n_iter) {
         if (cell_char$cell_state[cell]==0 | (cell_char$cell_state[cell]!=0 & runif(1)<0.5)) {
           r=which(recruit_char$pot_cell==cell)
           cell_char$cell_state[cell] <- as.numeric(as.character(recruit_char$sp[r]))
-          cell_char$attr_ind[cell] <- recruit_char$attr[r]
+          if(variance_scenario == "Scen1b") {
+            cell_char$attr_ind[cell] <- recruit_char$attr0[r]
+          } else {
+            cell_char$attr_ind[cell] <- recruit_char$attr[r]
+          }
           cell_char$perf_ind[cell] <- recruit_char$perf[r]
         }
       }
@@ -256,7 +287,7 @@ for (iter in 1:n_iter) {
   shannon <- - sum(prop*log(prop))
   shannon_index=c(shannon_index, shannon)
   
-  #message(paste("progress:", round(iter/n_iter,3)),"\r",appendLF=FALSE)
+  message(paste("progress:", round(iter/n_iter,3)),"\r",appendLF=FALSE)
 }
 
 
